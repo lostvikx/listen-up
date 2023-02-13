@@ -1,6 +1,9 @@
 import requests
 import os
+import re
 from bs4 import BeautifulSoup
+from GoogleTTS import tts
+from string import ascii_lowercase
 
 def parse_finshots(soup:BeautifulSoup):
   """
@@ -19,14 +22,26 @@ def parse_finshots(soup:BeautifulSoup):
 
 def parse_finshots_post(soup:BeautifulSoup):
   post = soup.find("div", {"class": "post-content"})
-  tags = post.find_all(["p","h1","h2","h3","h4"])
-  content = ""
+  tags = post.find_all(["p","h1","h2","h3","h4","hr","li"])
+  # Remove promotions
+  line_breaks = len(post.find_all("hr"))
+  hr_count = 0
+  # content = ""
+  all_texts = []
   for tag in tags:
-    text = tag.get_text()
-    if text:
-      # print(tag.name,text)
-      content += text + "\n"
-  return content.strip()
+    if (tag.name == "hr") and line_breaks > 1:
+      hr_count += 1
+      if (hr_count == line_breaks):
+        break
+    else:
+      # Can improve this!
+      text = tag.get_text()
+      dash = r"\u200a—\u200a"
+      text = re.sub(dash," - ",text)
+      if text:
+        # print(tag.name,text)
+        all_texts.append(text.strip())
+  return all_texts
 
 def fetch_articles(site_url):
   res = requests.get(site_url,headers={"user-agent": "Linux Machine (Listen Up)"})
@@ -35,9 +50,11 @@ def fetch_articles(site_url):
     soup = BeautifulSoup(res.text,"html.parser")
     posts = parse_finshots(soup)
     post = display_posts(posts)  # Selected post to hear
-    content = fetch_post_content(post["url"])
-    print(content,len(content))
-    # GoogleTTS(content)
+    content = [post["title"]] + fetch_post_content(post["url"])
+    # print(content,[len(c) for c in content])
+    audio_file_name = clean_filename(post["title"])
+    # print(audio_file_name)
+    tts.GoogleTTS(text_list=content,audio_file_name=audio_file_name)
   except Exception as err:
     print(f"Error while fetching posts: {err}")
 
@@ -62,3 +79,17 @@ def fetch_post_content(post_url):
   except Exception as err:
     print(f"Error while fetchin post content: {err}")
   return content
+
+def clean_filename(name):
+  # name = name.lower()
+  new_name = ""
+  for char in name.lower():
+    if (char in ascii_lowercase) or (char == " "):
+      new_name += char
+  file_name = ""
+  for char in new_name:
+    if char == " ":
+      file_name += "-"
+    else:
+      file_name += char
+  return file_name

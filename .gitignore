@@ -131,3 +131,4 @@ dmypy.json
 # GoogleTTS
 creds/
 temp/
+char_count.txt
